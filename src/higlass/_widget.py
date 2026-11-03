@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import concurrent.futures
+import asyncio
 import functools
-import itertools
 import json
 import logging
-import os
 import pathlib
 import typing
 
@@ -14,6 +12,7 @@ import ipywidgets
 import pydantic
 import traitlets as t
 
+from higlass._tile_requests import TileRequests
 from higlass._tileset_registry import TilesetRegistry
 
 __all__ = ["HiGlassWidget"]
@@ -35,11 +34,17 @@ class Tiles(pydantic.BaseModel):
     tileIds: list[str]
 
 
+class Cancel(pydantic.BaseModel):
+    """Cancel queued work using the original request ID."""
+
+    type: typing.Literal["cancel"]
+
+
 class CustomMessage(pydantic.BaseModel):
     """A custom message from the widget front end."""
 
     id: str
-    payload: typing.Union[TilesetInfo, Tiles]  # noqa: UP007
+    payload: typing.Union[TilesetInfo, Tiles, Cancel]  # noqa: UP007
 
 
 class JupyterTilesetClient(ipywidgets.Widget):
@@ -48,10 +53,13 @@ class JupyterTilesetClient(ipywidgets.Widget):
     Requests are handled asynchronously using a thread pool executor.
     """
 
-    _executor = concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count())
-
     def __init__(self) -> None:
         super().__init__()
+        try:
+            self._loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._loop = None
+        self._requests = TileRequests(TilesetRegistry, self._send_response)
         self.on_msg(self._handle_custom_message)
 
     @classmethod
@@ -60,32 +68,34 @@ class JupyterTilesetClient(ipywidgets.Widget):
         """Return a singleton client."""
         return cls()
 
+    def _send_response(self, response):
+        """Send from the kernel event loop when a worker finishes."""
+        def send_if_open():
+            """Suppress callbacks already queued when the client closes."""
+            if not self._requests.closed:
+                self.send(response)
+
+        if self._loop is not None:
+            self._loop.call_soon_threadsafe(send_if_open)
+        else:
+            send_if_open()
+
     def _handle_custom_message(self, widget, msg, buffers):
-        message = CustomMessage(**msg)
-        logger.debug("handle_custom_message: %s", message)
+        """Validate messages and report errors instead of losing worker futures."""
+        try:
+            message = CustomMessage(**msg)
+        except pydantic.ValidationError as error:
+            self._send_response({"id": msg["id"], "error": {
+                "type": type(error).__name__, "message": str(error),
+            }})
+            return
+        self._requests.handle(message.model_dump())
 
-        def respond_with(payload: object):
-            logger.debug("handle_custom_message::respond_with: %s", message.id)
-            self.send({"id": message.id, "payload": payload})
-
-        def process_message():
-            if isinstance(message.payload, TilesetInfo):
-                tileset_uid = message.payload.tilesetUid
-                respond_with({tileset_uid: TilesetRegistry.get(tileset_uid).info()})
-
-            elif isinstance(message.payload, Tiles):
-                tile_ids = message.payload.tileIds
-                tiles = []
-                for tileset_uid, group in itertools.groupby(
-                    iterable=sorted(tile_ids), key=lambda tile_id: tile_id.split(".")[0]
-                ):
-                    tiles.extend(TilesetRegistry.get(tileset_uid).tiles(list(group)))
-                respond_with({tile_id: tile for tile_id, tile in tiles})
-
-            else:
-                raise RuntimeError("Unexpected execution path")
-
-        self._executor.submit(process_message)
+    def close(self):
+        """Release queued requests before closing the comm."""
+        if hasattr(self, "_requests"):
+            self._requests.close()
+        super().close()
 
 
 class HiGlassWidget(anywidget.AnyWidget):
@@ -102,7 +112,11 @@ class HiGlassWidget(anywidget.AnyWidget):
     location = t.List(t.Union([t.Float(), t.Tuple()]), read_only=True).tag(sync=True)
 
     def __init__(self, viewconf: dict, plugin_urls: list[str] | None, **viewer_options):
+        bundle = pathlib.Path(__file__).parent / "widget.bundle.js"
+        if not bundle.exists():
+            raise RuntimeError("Build the patched widget first: see TILE_LOADING.md")
         super().__init__(
+            _esm=bundle.read_text(),
             _viewconf=viewconf,
             _plugin_urls=plugin_urls,
             _options=viewer_options,

@@ -1,0 +1,68 @@
+name: Notebook tile loading
+on:
+  push:
+    branches: [fix/notebook-tile-loading]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: higlass-python
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: Alessandro201/higlass
+          ref: 835c1ec5eb65706bb81ac3ba3b7a8a72f65b09d7
+          path: higlass
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+      - name: Install JavaScript build dependencies
+        working-directory: higlass
+        run: npm ci
+      - name: Typecheck and build patched HiGlass
+        working-directory: higlass
+        run: npm run build
+      - name: Bundle widget with patched HiGlass
+        working-directory: higlass-python
+        run: node scripts/build-widget.mjs ../higlass
+      - name: Regression tests
+        working-directory: higlass-python
+        run: |
+          node --test test/js/*.test.mjs
+          python -m unittest discover -s test/bridge -v
+      - name: Install exact Python dependency versions
+        working-directory: higlass-python
+        run: |
+          uv venv
+          uv pip install -e . pytest higlass-schema==0.2.1 clodius==0.22.2 cooler==0.12.1
+      - name: Python suite with real dependencies
+        working-directory: higlass-python
+        run: uv run --no-sync pytest test
+      - name: Install browser
+        working-directory: higlass
+        run: npx playwright install --with-deps chromium
+      - name: Render and navigate real widget
+        working-directory: higlass-python
+        run: node scripts/browser-smoke.mjs ../higlass
+      - name: Build wheel
+        working-directory: higlass-python
+        run: uv build --wheel
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tile-loading-${{ matrix.os }}
+          path: |
+            higlass-python/dist/*.whl
+            higlass-python/test-results/
