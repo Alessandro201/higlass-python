@@ -123,3 +123,25 @@ test('coarse graphics survive refinement but expire when replacement permanently
   t.removeTiles(['old']); assert.equal(destroyed.length, 1);
   t.remove();
 });
+
+
+test('a streamed error retries before a slow sibling finishes', async () => {
+  let calls = 0;
+  let completeSlow;
+  const t = track((receive, ids) => {
+    calls++;
+    if (calls === 1) {
+      queueMicrotask(() => receive({ '0.0.0': { error: new Error('failed') } }));
+      return new Promise((resolve) => { completeSlow = resolve; });
+    }
+    receive({ '0.0.0': { tilePositionId: '0.0.0', dense: [1] } });
+    return Promise.resolve();
+  });
+  t.target = ['0.0.0', '0.1.1'];
+  try {
+    t.refreshTiles(); await delay(300);
+    assert.equal(calls, 2);
+    assert.equal(t.fetching.has('0.1.1'), true);
+    assert.ok(t.fetchedTiles['0.0.0']);
+  } finally { t.remove(); completeSlow(); }
+});

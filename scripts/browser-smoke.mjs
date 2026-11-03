@@ -75,18 +75,18 @@ try {
     };
     window.testState = { attempts, sent, listeners, messages };
   });
-  await page.waitForFunction(() => window.timings.filter(([event]) => event === 'higlass.viewport').length >= 2, { timeout: 20000 });
+  await page.waitForFunction(() => window.timings.filter(([event]) => event === 'higlass.viewport').length >= 2, null, { timeout: 20000 });
   const slow = await page.evaluate(() => window.timings.filter(([event]) => event === 'higlass.tile').map(([, metric]) => metric).some((m) => m.read_ms >= 3100));
   assert.ok(slow, 'slow tile was delivered and rendered');
   await page.evaluate(() => { window.failNext = true; window.timings.length = 0; window.navigate(12000, 20000); });
-  await page.waitForFunction(() => window.timings.filter(([event]) => event === 'higlass.viewport').length >= 2, { timeout: 20000 });
+  await page.waitForFunction(() => window.timings.filter(([event]) => event === 'higlass.viewport').length >= 2, null, { timeout: 20000 });
   const rapidStarted = Date.now();
   for (let i = 0; i < 12; i++) {
     await page.evaluate((i) => window.navigate(2000 * i, 2000 * i + 8000), i);
     await page.waitForTimeout(30);
   }
   await page.evaluate(() => { window.timings.length = 0; window.navigate(40000, 48000); });
-  await page.waitForFunction(() => window.timings.filter(([event]) => event === 'higlass.viewport').length >= 2, { timeout: 20000 });
+  await page.waitForFunction(() => window.timings.filter(([event]) => event === 'higlass.viewport').length >= 2, null, { timeout: 20000 });
   const result = await page.evaluate(() => ({ timings: window.timings, attempts: window.testState.attempts }));
   result.rapid_navigation_wall_ms = Date.now() - rapidStarted;
   await fs.mkdir('test-results', { recursive: true });

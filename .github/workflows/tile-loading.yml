@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: Alessandro201/higlass
-          ref: 835c1ec5eb65706bb81ac3ba3b7a8a72f65b09d7
+          ref: c4f0179035126db301702d249ac0cbaebeb8d0f5
           path: higlass
       - uses: actions/setup-node@v4
         with:

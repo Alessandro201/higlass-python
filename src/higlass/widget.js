@@ -201,6 +201,11 @@ async function registerJupyterHiGlassDataFetcher(model) {
           data[fullId].tilePositionId = id;
           // Deliver each tile immediately; a slow sibling must not hold it back.
           receivedTiles({ [id]: data[fullId] });
+        } catch (error) {
+          if (error.name !== "AbortError" && visible.has(id) && !lifetime.signal.aborted) {
+            receivedTiles({ [id]: { error, tilePositionId: id } });
+          }
+          throw error;
         } finally {
           if (pending.get(id) === controller) pending.delete(id);
         }
