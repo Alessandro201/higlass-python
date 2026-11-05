@@ -59,6 +59,22 @@ jobs:
       - name: Build wheel
         working-directory: higlass-python
         run: uv build --wheel
+      - name: Verify wheel installation in a separate environment
+        working-directory: higlass-python
+        run: |
+          uv venv .wheel-venv
+          uv pip install --python .wheel-venv/bin/python dist/*.whl higlass-schema==0.2.1
+          .wheel-venv/bin/python - <<'PY'
+          import importlib.metadata
+          from higlass._widget import HiGlassWidget, JupyterTilesetClient
+          assert importlib.metadata.version("higlass-python") == "1.4.0+tilefix.1"
+          widget = HiGlassWidget({"views": []}, [])
+          assert len(widget._esm) > 1_000_000
+          assert "https://esm.sh/higlass@" not in widget._esm
+          widget.close()
+          JupyterTilesetClient.get_instance().close()
+          print(f"Wheel install passed; bundled widget is {len(widget._esm)} characters")
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
