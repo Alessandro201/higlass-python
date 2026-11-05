@@ -145,3 +145,34 @@ test('a streamed error retries before a slow sibling finishes', async () => {
     assert.ok(t.fetchedTiles['0.0.0']);
   } finally { t.remove(); completeSlow(); }
 });
+
+test('horizontal heatmap keeps rotated coverage beyond the genomic interval', async () => {
+  /** Minimal linear scale used by the production visibility calculation. */
+  function scale(domain = [256, 512]) {
+    const fn = (value) => (value - domain[0]) * 1000 / (domain[1] - domain[0]);
+    fn.copy = () => scale([...domain]);
+    fn.range = () => [0, 1000];
+    fn.invert = (value) => domain[0] + value * (domain[1] - domain[0]) / 1000;
+    fn.domain = (next) => { if (next) domain = next; return domain; };
+    return fn;
+  }
+  const Horizontal = await loadClass('app/scripts/HorizontalHeatmapTrack.js', 'HorizontalHeatmapTrack', {
+    HeatmapTiledPixiTrack: class {},
+    tileProxy: {
+      calculateTiles(zoom, expanded, min, max, maxZoom, width) {
+        const tileWidth = width / 2 ** zoom;
+        const [start, end] = expanded.domain();
+        return Array.from({ length: Math.ceil(end / tileWidth) - Math.floor(start / tileWidth) },
+          (_, index) => Math.floor(start / tileWidth) + index);
+      },
+    },
+  });
+  const t = Object.create(Horizontal.prototype);
+  let tiles;
+  Object.assign(t, { tilesetInfo: { min_pos: [0], max_pos: [1024], max_zoom: 3, max_width: 1024 },
+    _xScale: scale(), dimensions: [1000, 100], options: {}, calculateZoomLevel: () => 3,
+    setVisibleTiles(value) { tiles = value; } });
+  t.calculateVisibleTiles();
+  assert.ok(tiles.some(([zoom, row, column]) => zoom === 3 && row === 1 && column === 1));
+  assert.ok(tiles.some(([zoom, row, column]) => zoom === 3 && row === 4 && column === 4));
+});

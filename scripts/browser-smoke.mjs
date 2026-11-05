@@ -46,7 +46,7 @@ try {
         } else {
           attempts[id] = (attempts[id] ?? 0) + 1;
           if (sent.filter((m) => m.payload.type === 'tiles').length === 1) wait = 3100;
-          else wait = 30;
+          else wait = window.responseDelay ?? 30;
           if (window.failNext) {
             window.failNext = false;
             error = { type: 'OSError', message: 'Injected read failure', request: msg.payload };
@@ -78,8 +78,14 @@ try {
   await page.waitForFunction(() => window.timings.filter(([event]) => event === 'higlass.viewport').length >= 2, null, { timeout: 20000 });
   const slow = await page.evaluate(() => window.timings.filter(([event]) => event === 'higlass.tile').map(([, metric]) => metric).some((m) => m.read_ms >= 3100));
   assert.ok(slow, 'slow tile was delivered and rendered');
+  const phases = { initial: await page.evaluate(() => window.timings) };
+  assert.ok(await page.evaluate(() => Object.values(window.testState.attempts).every((count) => count === 1)),
+    'both tracks shared each initial tile read');
   await page.evaluate(() => { window.failNext = true; window.timings.length = 0; window.navigate(12000, 20000); });
   await page.waitForFunction(() => window.timings.filter(([event]) => event === 'higlass.viewport').length >= 2, null, { timeout: 20000 });
+  phases.failure_recovery = await page.evaluate(() => window.timings);
+  assert.ok(phases.failure_recovery.some(([event, metric]) => event === 'higlass.tile' && metric.error),
+    'injected read failure reached the frontend');
   const rapidStarted = Date.now();
   for (let i = 0; i < 12; i++) {
     await page.evaluate((i) => window.navigate(2000 * i, 2000 * i + 8000), i);
@@ -88,10 +94,13 @@ try {
   await page.evaluate(() => { window.timings.length = 0; window.navigate(40000, 48000); });
   await page.waitForFunction(() => window.timings.filter(([event]) => event === 'higlass.viewport').length >= 2, null, { timeout: 20000 });
   const result = await page.evaluate(() => ({ timings: window.timings, attempts: window.testState.attempts }));
+  result.phases = phases;
   result.rapid_navigation_wall_ms = Date.now() - rapidStarted;
   await fs.mkdir('test-results', { recursive: true });
   await page.screenshot({ path: 'test-results/widget.png' });
-  await page.evaluate(() => { window.navigate(0, 4000); window.disposeWidget(); });
+  await page.evaluate(() => { window.responseDelay = 200; window.navigate(0, 4000); });
+  await page.waitForFunction(() => window.testState.listeners.size > 0, null, { timeout: 5000 });
+  await page.evaluate(() => window.disposeWidget());
   await page.waitForTimeout(500);
   const remaining = await page.evaluate(() => ({ comm: window.testState.listeners.size,
     widget: window.testState.messages.size, canvas: document.querySelector('#widget').shadowRoot.querySelectorAll('canvas').length }));
