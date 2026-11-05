@@ -22,7 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Operating System :: OS Independent",
 ]
-dynamic = ["version"]
+version = "1.4.0+tilefix.1"
 readme = "README.md"
 dependencies = [
     "higlass-schema>=0.2.0",
@@ -44,9 +44,6 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/higlass"]
-
-[tool.hatch.version]
-source = "vcs"
 
 [tool.ruff.lint]
 extend-select = [

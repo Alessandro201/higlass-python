@@ -69,3 +69,23 @@ test('fast sibling delivers before slow reply and missing responses reject', asy
   assert.deepEqual(delivered, ['0.1']);
   client.reply(slow, {}); await rejected; reg.dispose();
 });
+
+
+test('separately imported widget modules share the same client pool', async () => {
+  const otherScope = vm.runInNewContext(`${source}\n({ registerJupyterHiGlassDataFetcher })`, {
+    TileRequests, window, crypto, AbortController, console,
+    hglib: { CSS: '', NOTEBOOK_TILE_PROTOCOL: 1 }, CSSStyleSheet: class { replaceSync() {} },
+  });
+  const client = model();
+  const a = await scope.registerJupyterHiGlassDataFetcher(owner(client));
+  const b = await otherScope.registerJupyterHiGlassDataFetcher(owner(client));
+  const make = (registration) => new window.higlassDataFetchersByType[registration.name].dataFetcher(hgc, { tilesetUid: 'uid' });
+  const fa = make(a); const fb = make(b);
+  fa.setVisibleTiles(['0.0']); fb.setVisibleTiles(['0.0']);
+  const pa = fa.fetchTilesDebounced(() => {}, ['0.0']);
+  const pb = fb.fetchTilesDebounced(() => {}, ['0.0']);
+  await delay(0);
+  assert.equal(client.sent.length, 1);
+  client.reply(client.sent[0], { 'uid.0.0': { dense: [1] } });
+  await Promise.all([pa, pb]); a.dispose(); b.dispose();
+});
