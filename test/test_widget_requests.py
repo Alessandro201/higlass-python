@@ -63,7 +63,7 @@ def test_pinned_cooler_clodius_read(tmp_path):
                              "end": (np.arange(count) + 1) * resolution})
         pixels = pd.DataFrame({"bin1_id": np.arange(count), "bin2_id": np.arange(count),
                                "count": np.ones(count, dtype=int)})
-        cooler.create_cooler(f"{filename}::resolutions/{resolution}", bins, pixels)
+        cooler.create_cooler(f"{filename}::resolutions/{resolution}", bins, pixels, mode="a")
         with h5py.File(filename, "a") as handle:
             handle[f"resolutions/{resolution}/bins"].create_dataset("weight", data=np.ones(count))
     info = cooler_tiles.tileset_info(str(filename))
