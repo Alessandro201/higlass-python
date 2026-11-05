@@ -136,3 +136,29 @@ Coverage includes reads beyond three seconds, exceptions, missing/error tiles,
 rapid viewport/resolution changes, out-of-order replies, retries after navigation
 back, multiple tracks/widgets sharing a tile, separate client routing, bounded
 queues and retry counts, retained coarse tiles, and disposal during active work.
+
+
+## Validation results
+
+The paired build passed on the macOS 14 GitHub runner with Python 3.12,
+higlass-schema 0.2.1, clodius 0.22.2, and cooler 0.12.1: 144 Python tests,
+17 JavaScript regression tests, HiGlass typechecking/build, and the browser smoke test.
+The browser rendered two horizontal heatmap tracks after a 3.1-second tile response,
+recovered from an injected provider error, and handled rapid navigation. Disposal
+left zero comm listeners, widget listeners, and canvas elements; no uncaught browser
+errors were observed. The final synthetic viewport reached a render frame in about
+313 ms for both tracks, with 349,600-byte encoded tile payloads and frontend queue
+delays of 0–43 ms. Browser provider read delays were simulated; they do not measure HDF5.
+The real Clodius/Cooler test separately reads a tiny generated two-resolution .mcool.
+
+A standalone original-code reproducer is included. To run it from this checkout:
+
+```fish
+git show 815e4aad8d2f83a12974ac2ffc58ec184509fcb1:src/higlass/widget.js > /tmp/higlass-original-widget.js
+node scripts/reproduce-baseline.mjs /tmp/higlass-original-widget.js
+```
+
+It reproduced the default timeout at about 3,006 ms and two constituent promises
+still pending after their batch rejected. The track regression suite also failed
+against unmodified upstream. An additional geometry regression verifies that the
+horizontal heatmap still includes the rotated coverage beyond the genomic interval.
