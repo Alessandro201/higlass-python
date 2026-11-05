@@ -1,5 +1,7 @@
 ### Fork notes
 This fork mainly fixes slow tile loading when displaying heavy `.mcool` files of very fine-grained resolution. 
+[Here](https://github.com/Alessandro201/higlass-python/blob/main/FORK_NOTICE.md) you can find instruction on how to use it.
+
 > [!WARNING]
 > The fix was done entirely by ChatGPT and is intended for my local use. I did not personally check it, and this is why I did not open a pull request. However, I did briefly compare it with the upstream version and the plots are the same, but the tiles are loaded quicker. 
 >
