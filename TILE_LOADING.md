@@ -1,6 +1,7 @@
 # Notebook tile-loading fix
 
 This branch starts at higlass-python 1.4.0 (815e4aad8d2f83a12974ac2ffc58ec184509fcb1).
+The installable fork version is `1.4.0+tilefix.1`.
 It requires the paired HiGlass branch, based on JavaScript 2.2.3
 (490ef57599a519534df577e4b90eb9ced6367975).
 

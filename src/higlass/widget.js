@@ -138,7 +138,7 @@ function resolveJupyterServers(viewConfig, dataFetcherId) {
 }
 
 // A tileset client can be shared by several widgets in the same notebook.
-const clients = new WeakMap();
+const clients = window[Symbol.for("higlass.notebook.tile-clients.v1")] ??= new WeakMap();
 
 /** Register a fetcher scoped to this rendered widget and its tileset client. */
 async function registerJupyterHiGlassDataFetcher(model) {
