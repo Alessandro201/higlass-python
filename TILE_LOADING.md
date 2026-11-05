@@ -140,9 +140,9 @@ queues and retry counts, retained coarse tiles, and disposal during active work.
 
 ## Validation results
 
-The paired build passed on the macOS 14 GitHub runner with Python 3.12,
+The paired build passed on the macOS 14 and Ubuntu 24.04 GitHub runners with Python 3.12,
 higlass-schema 0.2.1, clodius 0.22.2, and cooler 0.12.1: 144 Python tests,
-17 JavaScript regression tests, HiGlass typechecking/build, and the browser smoke test.
+18 JavaScript regression tests, HiGlass typechecking/build, and the browser smoke test.
 The browser rendered two horizontal heatmap tracks after a 3.1-second tile response,
 recovered from an injected provider error, and handled rapid navigation. Disposal
 left zero comm listeners, widget listeners, and canvas elements; no uncaught browser
@@ -150,6 +150,13 @@ errors were observed. The final synthetic viewport reached a render frame in abo
 313 ms for both tracks, with 349,600-byte encoded tile payloads and frontend queue
 delays of 0–43 ms. Browser provider read delays were simulated; they do not measure HDF5.
 The real Clodius/Cooler test separately reads a tiny generated two-resolution .mcool.
+A subsequent Linux software-rendering run measured about 1,026 ms for the final
+viewport; another macOS run measured about 554 ms. These CI timings demonstrate
+functionality and vary with the runner.
+The wheel also installed into a separate clean uv environment and constructed
+a widget with the bundled JavaScript. The browser report retains the initial
+slow-load, failure-recovery, and final
+viewport phases, including queue, payload, read-delay, and render-frame measurements.
 
 A standalone original-code reproducer is included. To run it from this checkout:
 
@@ -162,3 +169,6 @@ It reproduced the default timeout at about 3,006 ms and two constituent promises
 still pending after their batch rejected. The track regression suite also failed
 against unmodified upstream. An additional geometry regression verifies that the
 horizontal heatmap still includes the rotated coverage beyond the genomic interval.
+
+Validated workflow runs: [both platforms](https://github.com/Alessandro201/higlass-python/actions/runs/42059856013) and
+[separate-environment wheel installation](https://github.com/Alessandro201/higlass-python/actions/runs/42060131363).
